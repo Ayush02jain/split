@@ -70,10 +70,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow all origins during development
+import os
+
+# CORS — allow all origins during development, restrict in production
+origins = [
+    "http://localhost:5175",
+    "http://localhost:3000",
+]
+
+prod_origin = os.getenv("FRONTEND_URL")
+if prod_origin:
+    origins.append(prod_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"] if not prod_origin else origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
