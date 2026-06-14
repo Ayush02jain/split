@@ -31,7 +31,8 @@ export default function AddMemberModal({ groupId, onClose, onSuccess }) {
 
     try {
       await apiClient.post(`/groups/${groupId}/members`, {
-        user_id: selectedUserId
+        user_id: selectedUserId,
+        joined_at: new Date().toISOString().split('T')[0]
       });
       onSuccess?.();
       onClose();

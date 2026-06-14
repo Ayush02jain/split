@@ -24,11 +24,8 @@ export default function AddExpenseModal({ groupId, members, onClose, onSuccess }
         currency: 'INR',
         paid_by: paidBy,
         split_type: splitType,
-        participant_ids: participantIds,
-        // Detailed splits (unequal/percentage) would need a more complex UI 
-        // to collect amounts per user. For MVP, we pass empty array which 
-        // defaults to equal if split_type="equal"
-        split_details: [] 
+        expense_date: new Date().toISOString().split('T')[0],
+        participants: participantIds.map(id => ({ user_id: id }))
       };
 
       await apiClient.post(`/groups/${groupId}/expenses`, payload);
@@ -87,7 +84,7 @@ export default function AddExpenseModal({ groupId, members, onClose, onSuccess }
                 <option value="" disabled>Select person</option>
                 {members.filter(m => !m.left_at).map(m => (
                   <option key={m.user_id} value={m.user_id}>
-                    {m.user.display_name}
+                    {m.display_name}
                   </option>
                 ))}
               </select>

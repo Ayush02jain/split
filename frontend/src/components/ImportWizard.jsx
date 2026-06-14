@@ -6,6 +6,8 @@ export default function ImportWizard({ groupId, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [session, setSession] = useState(null);
+  const [anomalies, setAnomalies] = useState([]);
+  const [reviewing, setReviewing] = useState(false);
 
   const handleUpload = async (e) => {
     e.preventDefault();
@@ -17,7 +19,7 @@ export default function ImportWizard({ groupId, onClose, onSuccess }) {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const data = await apiClient.postForm(`/groups/${groupId}/import/upload`, formData);
+      const data = await apiClient.post(`/groups/${groupId}/import/upload`, formData);
       setSession(data);
     } catch (err) {
       setError(err.message || 'Failed to upload CSV');
@@ -34,6 +36,35 @@ export default function ImportWizard({ groupId, onClose, onSuccess }) {
       onClose();
     } catch (err) {
       setError(err.message || 'Failed to confirm import');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAnomalies = async () => {
+    setLoading(true);
+    try {
+      const data = await apiClient.get(`/import/${session.id}/anomalies`);
+      setAnomalies(data);
+      setReviewing(true);
+    } catch (err) {
+      setError(err.message || 'Failed to load anomalies');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resolveAnomaly = async (anomalyId, action, details = {}) => {
+    setLoading(true);
+    try {
+      await apiClient.post(`/import/conflicts/${anomalyId}/resolve`, { action, details });
+      // Update local state to reflect it's resolved
+      setAnomalies(prev => prev.map(a => 
+        a.id === anomalyId ? { ...a, auto_resolved: true, requires_user_action: false, resolution: { action, details } } : a
+      ));
+      setSession(prev => ({ ...prev, pending_reviews: Math.max(0, prev.pending_reviews - 1) }));
+    } catch (err) {
+      setError(err.message || 'Failed to resolve issue');
     } finally {
       setLoading(false);
     }
@@ -70,6 +101,88 @@ export default function ImportWizard({ groupId, onClose, onSuccess }) {
                 {loading ? 'Uploading...' : 'Upload & Analyze'}
               </button>
             </form>
+          ) : reviewing ? (
+            <div className="flex-col gap-4 max-h-[60vh] overflow-y-auto pr-2">
+              <button className="text-sm text-main underline mb-2 self-start" onClick={() => setReviewing(false)}>
+                ← Back to Summary
+              </button>
+              
+              {anomalies.map(anomaly => {
+                const isAutoResolved = anomaly.auto_resolved;
+                const isResolved = anomaly.resolution !== null;
+                const isDuplicate = anomaly.anomaly_type.includes('duplicate');
+                const isSettlement = anomaly.anomaly_type === 'settlement_as_expense';
+                // Blocking means it requires action, but cannot be "forced". It must be skipped or properly resolved.
+                const isBlocking = !isDuplicate && !isSettlement && anomaly.requires_user_action;
+
+                let cardClass = "card border-gray-200 bg-gray-50 p-4";
+                if (!isAutoResolved && !isResolved && anomaly.requires_user_action) {
+                   cardClass = isBlocking ? "card border-red-200 bg-red-50 p-4" : "card border-yellow-200 bg-yellow-50 p-4";
+                } else if (isResolved) {
+                   cardClass = "card border-green-200 bg-green-50 p-4 opacity-75";
+                }
+
+                return (
+                  <div key={anomaly.id} className={cardClass}>
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className={`font-semibold text-sm capitalize ${isBlocking && !isResolved ? 'text-red-800' : 'text-gray-800'}`}>
+                        {anomaly.anomaly_type.replace(/_/g, ' ')}
+                      </h4>
+                      {anomaly.row_number && <span className="badge badge-outline">Row {anomaly.row_number}</span>}
+                    </div>
+                    <p className={`text-sm mb-3 ${isBlocking && !isResolved ? 'text-red-700' : 'text-gray-600'}`}>
+                      {anomaly.description}
+                    </p>
+                    
+                    {anomaly.raw_data && (
+                      <pre className="text-xs bg-white p-2 rounded border border-gray-200 mb-3 overflow-x-auto text-gray-500">
+                        {JSON.stringify(anomaly.raw_data, null, 2)}
+                      </pre>
+                    )}
+                    
+                    {isAutoResolved ? (
+                      <div className="text-xs font-medium text-green-700 bg-green-100 inline-block px-2 py-1 rounded">
+                        ✓ Automatically resolved: {anomaly.auto_resolution}
+                      </div>
+                    ) : isResolved ? (
+                      <div className="text-xs font-medium text-green-700 bg-green-100 inline-block px-2 py-1 rounded">
+                        ✓ User resolution applied: {anomaly.resolution.action.replace(/_/g, ' ')}
+                      </div>
+                    ) : anomaly.requires_user_action ? (
+                      <div className="flex gap-2 mt-2">
+                        <button 
+                          className="btn btn-outline text-xs bg-white" 
+                          onClick={() => resolveAnomaly(anomaly.id, 'skip')}
+                          disabled={loading}
+                        >
+                          Skip this row
+                        </button>
+                        
+                        {!isBlocking && isDuplicate && (
+                          <button 
+                            className="btn btn-primary text-xs" 
+                            onClick={() => resolveAnomaly(anomaly.id, 'accept_duplicate', { accepted: true })}
+                            disabled={loading}
+                          >
+                            Accept Duplicate
+                          </button>
+                        )}
+
+                        {!isBlocking && isSettlement && (
+                          <button 
+                            className="btn btn-primary text-xs" 
+                            onClick={() => resolveAnomaly(anomaly.id, 'convert_to_settlement', {})}
+                            disabled={loading}
+                          >
+                            Convert to Settlement
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <div className="flex-col gap-4">
               <div className="card bg-gray-50 border-gray-200">
@@ -85,8 +198,12 @@ export default function ImportWizard({ groupId, onClose, onSuccess }) {
                 <div className="p-4 bg-yellow-50 text-yellow-800 rounded-md text-sm border border-yellow-200">
                   <p className="font-medium mb-1">⚠️ Review Required</p>
                   <p>There are {session.pending_reviews} issues that need your attention before you can confirm the import.</p>
-                  <button className="btn btn-outline text-xs mt-3 bg-white">
-                    Review Anomalies
+                  <button 
+                    className="btn btn-outline text-xs mt-3 bg-white"
+                    onClick={loadAnomalies}
+                    disabled={loading}
+                  >
+                    {loading ? 'Loading...' : 'Review Anomalies'}
                   </button>
                 </div>
               ) : (

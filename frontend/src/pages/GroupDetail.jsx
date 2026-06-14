@@ -80,8 +80,8 @@ export default function GroupDetail() {
 
       <div className="flex gap-6 mb-8">
         <StatCard 
-          title="Group members" 
-          value={memberCount} 
+          title="Total expenses" 
+          value={`₹${expenses.reduce((sum, e) => sum + e.amount, 0).toFixed(2)}`} 
         />
         <StatCard 
           title="Total group debt" 
@@ -91,6 +91,10 @@ export default function GroupDetail() {
           title="Your balance" 
           value={`${yourBalance > 0 ? '+' : ''}₹${Math.abs(yourBalance).toFixed(2)}`} 
           valueColor={yourBalance > 0 ? 'var(--success)' : yourBalance < 0 ? 'var(--danger)' : 'var(--text-main)'}
+        />
+        <StatCard 
+          title="Group members" 
+          value={memberCount} 
         />
       </div>
 
