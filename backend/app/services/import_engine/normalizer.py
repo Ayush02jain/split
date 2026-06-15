@@ -167,7 +167,7 @@ def resolve_name(raw_name: str, known_users: List[str]) -> Tuple[str, Optional[s
             return known, f"Name fuzzy-matched: '{raw_name}' → '{known}' (needs confirmation)", True
 
     # Unknown user
-    return normalized, f"Unknown user: '{raw_name}'", True
+    return normalized, f"New user '{raw_name}' will be automatically created", False
 
 
 # --- Currency Normalization ---
