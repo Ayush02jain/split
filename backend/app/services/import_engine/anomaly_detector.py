@@ -172,14 +172,9 @@ def validate_membership(
         return anomalies
 
     # Check if expense is before group creation
+    # (Silently allow historical expenses to avoid anomaly inflation)
     if group_created_at and expense_date < group_created_at:
-        anomalies.append({
-            "type": "expense_before_group",
-            "severity": "warning",
-            "description": f"Expense date {expense_date} is before group creation date {group_created_at}",
-            "auto_resolved": False,
-            "requires_user_action": True,
-        })
+        pass
 
     participants = row.get("participants", [])
     excluded = []
