@@ -1,5 +1,6 @@
-// API Client using fetch
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// In production, Vercel rewrites /api/* to the Render backend (no CORS needed)
+// In development, fall back to localhost
+const API_BASE = import.meta.env.DEV ? 'http://localhost:8000/api' : '/api';
 
 export const apiClient = {
   async request(endpoint, options = {}) {

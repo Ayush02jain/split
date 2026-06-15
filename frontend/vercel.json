@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://split-expense-backend-wvkv.onrender.com/api/:path*"
+    }
+  ]
+}
